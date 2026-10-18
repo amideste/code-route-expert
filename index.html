@@ -1301,27 +1301,34 @@ const FIREBASE_CONFIG = {
   projectId: "code-route-expert",
   appId: "1:1036957338971:web:a4ff8672b6d40e2498de7e"
 };
-let fbDoc = null, dernierEnvoi = "";
-function synchroActive(){ return FIREBASE_CONFIG.projectId !== "REMPLACER" && typeof firebase !== "undefined"; }
+let fbDoc = null, dernierEnvoi = "", pret = false;
+function champActif(){
+  const a = document.activeElement;
+  return !!a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT");
+}
 function envoyerEtat(){
-  if(!fbDoc) return;
+  if(!fbDoc || !pret) return;
   const json = JSON.stringify(S);
   if(json === dernierEnvoi) return;
   dernierEnvoi = json;
   fbDoc.set({json: json, maj: Date.now()}).catch(e => console.warn("Synchronisation impossible :", e));
 }
 async function demarrerSync(){
-  if(!synchroActive()) return;
+  if(typeof firebase === "undefined" || FIREBASE_CONFIG.projectId === "REMPLACER") return;
   try{
-    firebase.initializeApp(FIREBASE_CONFIG);
+    if(!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
     await firebase.auth().signInAnonymously();
     fbDoc = firebase.firestore().collection("appli").doc("etat");
     fbDoc.onSnapshot(snap => {
-      if(!snap.exists) return;
+      if(!snap.exists){ pret = true; return; }
       const distant = snap.data().json;
-      if(distant === dernierEnvoi) return;
+      if(distant === dernierEnvoi){ pret = true; return; }
+      const premiere = !pret;
+      pret = true;
       dernierEnvoi = distant;
       S = JSON.parse(distant);
+      if(premiere) return;
+      if(!champActif()) location.reload();
     });
     setInterval(envoyerEtat, 2000);
   }catch(e){ console.warn("Firebase non disponible :", e); }
